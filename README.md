@@ -6,7 +6,7 @@ step：
   2,find all file with RegExp
   3,tail one children file
   4,batch to channal
-  5,属性contextIsFlumeLog 如果等于true，数据必须以'\'分割，如要自定义数据格式，请在msgTypeConfig属性中添加，例如
+  5,属性contextIsFlumeLog 如果等于true，数据必须以'|'分割，如要自定义数据格式，请在msgTypeConfig属性中添加，例如
     agent1.sources.source1.msgTypeConfig=one_type:className|methodName|level|treeId|requestId|transactionId
      If the contextIsFlumeLog attribute is equal to true,
         the data must be | segmentation,
