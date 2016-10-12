@@ -29,7 +29,7 @@ public class ExecTailSourceConfigurationConstants {
   public static final boolean DEFAULT_RESTART_TRUE = true;
   public static final boolean DEFAULT_STARTATBEGINNING = false;
 
-  public static final boolean DEFAULT_ISTAILING_TRUE = true;
+  public static final String DEFAULT_ISTAILING_TRUE = "all";
   public static final boolean DEFAULT_CONTEXTISJSON = false;
   public static final String DEFAULT_MSGTYPECONFIG = "";
 
@@ -51,6 +51,10 @@ public class ExecTailSourceConfigurationConstants {
 
 
   public static final String DEFAULT_DOMAIN = null;
+  public static final String DEFAULT_BASE_FILE_PATH = "/Data/logs";
+
+  public static final String DEFAULT_CHILDREN_FILE = "all";
+
   public static final Long DEFAULT_FLUSHTIME = 5000L;
 
   public static final Integer DEFAULT_READINTERVAL = 500;
@@ -90,6 +94,12 @@ public class ExecTailSourceConfigurationConstants {
    * make your domain name
    */
   public static final String CONFIG_DOMIAN_THROTTLE = "domain";
+  public static final String BASE_FILE_PATH = "basefilepath";
+
+  public static final String APILOGS = "apilogs";
+  public static final String OPERATELOGS = "operatelogs";
+  public static final String TOMCATLOGS = "tomcatlogs";
+
   public static final String CONFIG_FLUSHTIME_THROTTLE = "flushTime";
   public static final String CONFIG_READINTERVAL_THROTTLE = "readinterval";
 
