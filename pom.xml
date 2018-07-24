@@ -23,7 +23,7 @@ limitations under the License.
   <parent>
     <artifactId>flume-parent</artifactId>
     <groupId>org.apache.flume</groupId>
-    <version>1.6.0</version>
+    <version>1.7.0</version>
   </parent>
 
   <groupId>org.apache.flume</groupId>
@@ -52,6 +52,8 @@ limitations under the License.
 
   <modules>
     <module>flume-extail-source</module>
+	<module>flume-kafka-channel</module>
+	<module>flume-ng-elasticsearch-sink</module>
   </modules>
 
 </project>

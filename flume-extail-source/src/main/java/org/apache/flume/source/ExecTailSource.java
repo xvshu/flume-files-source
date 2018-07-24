@@ -57,7 +57,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
 
   private SourceCounter sourceCounter;
   private ExecutorService executor;
-  private List<ExecRunnable> listRuners;
+  private List<ExecTailRunnable> listRuners;
   private List<Future<?>> listFuture;
   private long restartThrottle;
   private boolean restart = true;
@@ -108,20 +108,20 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
       FileInputStream fis = new FileInputStream(fileWriteJson);//属性文件流
       prop.load(fis);
     }catch(Exception ex){
-      logger.error("==>",ex);
+      logger.error("=ExecTailSource.start=>",ex);
     }
 
 
 
     executor = Executors.newFixedThreadPool(listFiles.size());
 
-    listRuners = new ArrayList<ExecRunnable>();
+    listRuners = new ArrayList<ExecTailRunnable>();
     listFuture = new ArrayList<Future<?>>();
 
     logger.info("files size is {} ", listFiles.size());
     // FIXME: Use a callback-like executor / future to signal us upon failure.
     for(String oneFilePath : listFiles){
-      ExecRunnable runner = new ExecRunnable(getChannelProcessor(), sourceCounter,
+      ExecTailRunnable runner = new ExecTailRunnable(sourceCounter,
               restart, restartThrottle, logStderr, bufferCount, batchTimeout,
               charset,oneFilePath,tailing,readinterval,startAtBeginning,contextIsJson,
               prop,fileWriteJson,flushTime,contextIsFlumeLog,domain);
@@ -147,7 +147,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
 
     logger.info("=stop=> flume tail source stop begin time:"+new Date().toString());
     if(listRuners !=null && !listRuners.isEmpty()){
-      for(ExecRunnable oneRunner : listRuners){
+      for(ExecTailRunnable oneRunner : listRuners){
         if(oneRunner != null) {
           oneRunner.setRestart(false);
           oneRunner.kill();
@@ -172,8 +172,8 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
       try {
         executor.awaitTermination(500, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
-        logger.debug("Interrupted while waiting for ExecTail executor service "
-                + "to stop. Just exiting.");
+        logger.error("Interrupted while waiting for ExecTail executor service "
+                + "to stop. Just exiting.",e);
         Thread.currentThread().interrupt();
       }
     }
@@ -236,7 +236,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
         }
       }
     }catch (Exception ex){
-      ex.printStackTrace();
+      logger.error("=ExecTailSource.configure=>", ex );
     }
 
     logger.info("=MsgBuildeJson.MsgTypes is =>"+ JSON.toString(MsgBuildeJson.MsgTypes));
@@ -448,9 +448,9 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
   }
 
 
-  private static class ExecRunnable implements Runnable {
+  private class ExecTailRunnable implements Runnable {
 
-    public ExecRunnable(ChannelProcessor channelProcessor,
+    public ExecTailRunnable(
                         SourceCounter sourceCounter, boolean restart, long restartThrottle,
                         boolean logStderr, int bufferCount, long batchTimeout,
                         Charset charset, String filepath,
@@ -459,7 +459,6 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
                         Properties prop, String fileWriteJson, Long flushTime,
                         boolean contextIsFlumeLog, String domain) {
 
-      this.channelProcessor = channelProcessor;
       this.sourceCounter = sourceCounter;
       this.restartThrottle = restartThrottle;
       this.bufferCount = bufferCount;
@@ -487,7 +486,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
 
 
 
-    private final ChannelProcessor channelProcessor;
+
     private final SourceCounter sourceCounter;
     private volatile boolean restart;
     private final long restartThrottle;
@@ -510,7 +509,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
     /**
      * 当读到文件结尾后暂停的时间间隔
      */
-    private long readinterval = 500;
+    private long readinterval = 10000;
 
     /**
      * 设置日志文件
@@ -530,7 +529,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
 
     private boolean contextIsFlumeLog=false;
 
-    private static String getDomain(String filePath){
+    private  String getDomain(String filePath){
       String[] strs = filePath.split("/");
       String domain ;
       domain=strs[strs.length-3];
@@ -542,28 +541,32 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
 
     @Override
     public void run() {
+      logger.info("=run=>main begin");
       Transaction tt = null;
       try {
         do {
+          logger.info("=run=>main beginReadLog");
           beginReadLog();
         } while (restart);
       }catch (Exception ex){
-        logger.error("=run=>",ex);
+        logger.error("=run=> main:",ex);
         try{
-          tt=  Profiler.registerInfo("service", "org.apache.flume.source.ExecTailSource.ExecRunnable.run");
+          tt=  Profiler.registerInfo("service", "org.apache.flume.source.ExecTailSource.ExecTailRunnable.run");
           Profiler.functionError(tt, ex);
         }catch (Exception exp){
           logger.error("=run=>tt error ",exp);
         }
       }finally {
         if(tt!=null){
+          logger.info("=run=>main Profiler.registerEnd(tt);");
           Profiler.registerEnd(tt);
         }
       }
+      logger.info("=run=>main end");
     }
 
     private void beginReadLog(){
-        logger.info("=run=> flume tail source run start time:"+new Date().toString());
+        logger.info("=beginReadLog=> flume tail source run start time:"+new Date().toString());
         timepoint=System.currentTimeMillis();
         Long filePointer = null;
         if (this.startAtBeginning) { //判断是否从头开始读文件
@@ -573,16 +576,16 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
 
             try {
               filePointer = Long.valueOf((String) prop.get(filepath));
-              logger.info("=ExecRunnable.run=>filePointer get from  Properties");
+              logger.info("=ExecTailRunnable.beginReadLog=>filePointer get from  Properties");
             }catch (Exception ex){
-              logger.error("=ExecRunnable.run=>",ex);
-              logger.info("=ExecRunnable.run=> error filePointer get from file size");
+              logger.error("=ExecTailRunnable.beginReadLog=>",ex);
+              logger.info("=ExecTailRunnable.beginReadLog=> error filePointer get from file size");
               filePointer=null;
             }
           }
           if(filePointer ==null){
             filePointer = this.logfile.length(); //指针标识从文件的当前长度开始。
-            logger.info("=ExecRunnable.run=>filePointer get from file size");
+            logger.info("=ExecTailRunnable.beginReadLog=>filePointer get from file size");
           }
 
         }
@@ -596,6 +599,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
         RandomAccessFile randomAccessFile = null;
         try {
 
+          logger.info("=ExecTailRunnable.beginReadLog=> begin create RandomAccessFile for "+logfile);
           randomAccessFile= new RandomAccessFile(logfile, "r"); //创建随机读写文件
           future = timedFlushService.scheduleWithFixedDelay(new Runnable() {
                                                               @Override
@@ -607,7 +611,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
                                                                     }
                                                                   }
                                                                 } catch (Exception e) {
-                                                                  logger.error("Exception occured when processing event batch", e);
+                                                                  logger.error("=ExecTailRunnable.beginReadLog=>scheduleWithFixedDelay Exception occured when processing event batch", e);
                                                                   if(e instanceof InterruptedException) {
                                                                     Thread.currentThread().interrupt();
                                                                   }
@@ -615,28 +619,51 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
                                                               }
                                                             },
                   batchTimeout, batchTimeout, TimeUnit.MILLISECONDS);
-
+          logger.info("=ExecTailRunnable.beginReadLog=> begin while isTailing:"+isTailing);
           while (this.isTailing) {
+            logger.info(this.filepath+"=ExecTailRunnable.beginReadLog=> while begin isTailing:"+isTailing);
             long fileLength = this.logfile.length();
             if (fileLength < filePointer) {
+              logger.info(this.filepath+"=ExecTailRunnable.beginReadLog=> fileLength < filePointer create RandomAccessFile for "+logfile);
               randomAccessFile = new RandomAccessFile(logfile, "r");
               filePointer = 0l;
             }
             if (fileLength > filePointer) {
               randomAccessFile.seek(filePointer);
               String line = randomAccessFile.readLine();
-              if(line!=null){
+              logger.info(this.filepath+"=1=>randomAccessFile.readLine:"+line);
+
+              //读到空行
+              if(line==null||line.trim().length()<1){
+                int io_c = 0;
+                while (true){
+                  io_c=io_c+1;
+                  logger.info(this.filepath+"=randomAccessFile.readLine=> line is null");
+                  filePointer = randomAccessFile.getFilePointer();
+                  line=randomAccessFile.readLine();
+                  if ((line!=null && line.trim().length()>0) || fileLength <= filePointer) {
+                    break;
+                  }
+                  if(io_c%10==0){
+                    try {
+                      Thread.sleep(10000);
+                    }catch (Exception ex){
+                      logger.warn("Thread.sleep(10000)",ex);
+                    }
+                  }
+                }
+              }
+
+              if(line!=null&&line.trim().length()>0){
                 line = new String(line.getBytes(ExecTailSourceConfigurationConstants.CHARSET_RANDOMACCESSFILE),charset);
                 line = line.replaceAll("\"","\'");
               }
 
-              while (line != null) {
-
+              while (line != null && line.trim().length()>0) {
+                logger.info(this.filepath+"=beginReadLog=>do while begin:");
                 //送channal
                 synchronized (eventList) {
                   sourceCounter.incrementEventReceivedCount();
-
-
                   String bodyjson = "";
                   if (!contextIsJson) {
                     bodyjson = MsgBuildeJson.buildeJson(contextIsFlumeLog,line,filepath,domain);
@@ -651,24 +678,44 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
                   oneEvent.getHeaders().put("UlogDomain",domain);
                   oneEvent.getHeaders().put("topic","file_channel_topic_"+domain);
                   eventList.add(oneEvent);
+                  logger.info(this.filepath+"=eventList.add(oneEvent)=>eventList.size:"+eventList.size());
                   if (eventList.size() >= bufferCount || timeout()) {
                     flushEventBatch(eventList);
+                    eventList.clear();
                   }
                 }
 
                 //读下一行
                 line = randomAccessFile.readLine();
-                if(line!=null){
+                logger.info(this.filepath+"=2=>randomAccessFile.readLine:"+line);
+                if(line!=null&&line.trim().length()>0){
                   line = new String(line.getBytes(ExecTailSourceConfigurationConstants.CHARSET_RANDOMACCESSFILE),charset);
                   line = line.replaceAll("\"","\'");
+                }else{
+                  fileLength=this.logfile.length();
+                  int io_c = 0;
+                  while (true){
+                    io_c=io_c+1;
+                    logger.info(this.filepath+"=2=>randomAccessFile.readLine=> line is null");
+                    filePointer = randomAccessFile.getFilePointer();
+                    line=randomAccessFile.readLine();
+                    if ((line!=null && line.trim().length()>0) || fileLength <= filePointer) {
+                      break;
+                    }
+                    if(io_c%10==0){
+                      try {
+                        Thread.sleep(10000);
+                      }catch (Exception ex){
+                        logger.warn("Thread.sleep(10000)",ex);
+                      }
+                    }
+                  }
                 }
-
                 try{
                   Cat.logMetricForCount("count_file_readline_"+domain);
                 }catch (Exception ex){
-                  logger.error("=run=>count_file_readline_"+domain,ex);
+                  logger.error(this.filepath+"=run=>count_file_readline_"+domain,ex);
                 }
-
                 try {
                   Long nowfilePointer = randomAccessFile.getFilePointer();
                   if (!nowfilePointer.equals(filePointer)) {
@@ -685,14 +732,16 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
                     }
                   }
                 }catch(Exception ex){
-                  ex.printStackTrace();
+                  logger.error(this.filepath+"=ExecTailSource.beginReadLog=> error:",ex);
                 }
               }
-
+              logger.info(this.filepath+"=ExecTailSource.beginReadLog=> line is null");
+            }else{
+              logger.info(this.filepath+"=ExecTailSource.beginReadLog=>fileLength <= filePointer");
             }
             Thread.sleep(this.readinterval);
           }
-
+          logger.info(this.filepath+"=ExecTailRunnable.beginReadLog=>end while  end isTailing:"+isTailing);
           synchronized (eventList) {
             if(!eventList.isEmpty()) {
               flushEventBatch(eventList);
@@ -715,32 +764,44 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
           }
 
         }
-        logger.info("=run=> flume tail source run restart:"+restart);
+      logger.info(this.filepath+"=run=> flume tail source run restart:"+restart);
         if(restart) {
-          logger.info("=run=> flume tail source run restart time:"+new Date().toString());
-          logger.info("Restarting in {}ms", restartThrottle);
+          logger.info(this.filepath+"=run=> flume tail source run restart time:"+new Date().toString());
+          logger.info(this.filepath+"Restarting in {}ms", restartThrottle);
           try {
             Thread.sleep(restartThrottle);
           } catch (InterruptedException e) {
+            logger.error("=run=>",e);
             Thread.currentThread().interrupt();
           }
         } else {
-          logger.info("filepath [" + filepath + "] exited with restart[" + restart+"]");
+          logger.info(this.filepath+"filepath [" + filepath + "] exited with restart[" + restart+"]");
         }
 
     }
 
     private void flushEventBatch(List<Event> eventList){
-      channelProcessor.processEventBatch(eventList);
-      sourceCounter.addToEventAcceptedCount(eventList.size());
-      eventList.clear();
-      lastPushToChannel = systemClock.currentTimeMillis();
-
-      try{
-        Cat.logMetricForCount("count_file_flushEventBatch_"+domain);
-      }catch (Exception ex){
-        logger.error("=run=>count_file_flushEventBatch_"+domain,ex);
+      logger.info(this.filepath+"=ExecTailRunnable.flushEventBatch=> begin eventListsize:"+eventList.size());
+      try {
+        if(eventList==null||eventList.size()<=0){
+          logger.info(this.filepath+"=ExecTailRunnable.flushEventBatch=>eventList==null||eventList.size()<=0 return");
+          return;
+        }
+        getChannelProcessor().processEventBatch(eventList);
+        logger.info(this.filepath+"=ExecTailRunnable.flushEventBatch=>sourceCounter.addToEventAcceptedCount size:" + eventList.size());
+        sourceCounter.addToEventAcceptedCount(eventList.size());
+        eventList.clear();
+        lastPushToChannel = systemClock.currentTimeMillis();
+        logger.info(this.filepath+"=ExecTailRunnable.flushEventBatch=>addToEventAcceptedCount end");
+        try {
+          Cat.logMetricForCount("count_file_flushEventBatch_" + domain);
+        } catch (Exception ex) {
+          logger.error(this.filepath+"=run=>cat error count_file_flushEventBatch_" + domain, ex);
+        }
+      }catch (Exception exe){
+        logger.error(this.filepath+"=ExecTailRunnable.flushEventBatch=>error ",exe);
       }
+      logger.info(this.filepath+"=ExecTailRunnable.flushEventBatch=> end");
     }
 
     private HashMap ParseFlumeLog(String log,HashMap logMap){
@@ -758,7 +819,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
       return (systemClock.currentTimeMillis() - lastPushToChannel) >= batchTimeout;
     }
 
-    private static String[] formulateShellCommand(String shell, String command) {
+    private  String[] formulateShellCommand(String shell, String command) {
       String[] shellArgs = shell.split("\\s+");
       String[] result = new String[shellArgs.length + 1];
       System.arraycopy(shellArgs, 0, result, 0, shellArgs.length);
@@ -784,6 +845,7 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
               } catch (InterruptedException e) {
                 logger.debug("Interrupted while waiting for ExecTail executor service "
                         + "to stop. Just exiting.");
+                logger.error("=kill=>",e);
                 Thread.currentThread().interrupt();
               }
             }
@@ -827,14 +889,18 @@ public class ExecTailSource extends AbstractSource implements EventDrivenSource,
           }
         }
       } catch (IOException e) {
-        logger.info("StderrLogger exiting", e);
-      } finally {
+        logger.error("StderrLogger exiting", e);
+      } catch(Exception ex){
+        logger.error("=run=>",ex);
+      }finally {
         try {
           if(input != null) {
             input.close();
           }
         } catch (IOException ex) {
           logger.error("Failed to close stderr reader for ExecTail source", ex);
+        }catch (Exception exe){
+          logger.error("=run=>",exe);
         }
       }
     }

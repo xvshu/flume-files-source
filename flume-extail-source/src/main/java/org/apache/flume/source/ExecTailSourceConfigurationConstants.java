@@ -57,7 +57,7 @@ public class ExecTailSourceConfigurationConstants {
 
   public static final Long DEFAULT_FLUSHTIME = 5000L;
 
-  public static final Integer DEFAULT_READINTERVAL = 500;
+  public static final Integer DEFAULT_READINTERVAL = 300000;
 
   /**
    * Amount of time to wait before attempting a restart: : default 10000 ms
